@@ -20,12 +20,23 @@ If you are using GPU version for windows os, then download [cudnn library](http:
 
 
 [1M images list for student model](http://mcs2018-competition.visionlabs.ru/img_list_1M.csv) and [descriptors](http://mcs2018-competition.visionlabs.ru/img_descriptors_1M.npy)
-1. download black-box model and move to baseline director
-2. download [pair's data](http://mcs2018-competition.visionlabs.ru/imgs.zip), [student_model_imgs](http://mcs2018-competition.visionlabs.ru/student_model_imgs.zip), [submit list](http://mcs2018-competition.visionlabs.ru/submit_list.csv), [pairs list](http://mcs2018-competition.visionlabs.ru/pairs_list.csv) and move to data
+1. download black-box model and move to baseline director  
+2. Get and run prepared docker image:  
+```
+docker build -t gasparjan/mcs2018:latest .
+```  
+```
+docker pull gasparjan/mcs2018:latest
+```  
+```
+docker run -it -p 8888:8888 -v /home/gas/Documents/MCS2018.Baseline:/home/MCS2018.Baseline --ipc=host gasparjan/mcs2018:latest jupyter notebook --no-browser --ip=0.0.0.0 --allow-root --NotebookApp.token= --notebook-dir='/home/MCS2018.Baseline'  
+```  
+
+3. download [pair's data](http://mcs2018-competition.visionlabs.ru/imgs.zip), [student_model_imgs](http://mcs2018-competition.visionlabs.ru/student_model_imgs.zip), [submit list](http://mcs2018-competition.visionlabs.ru/submit_list.csv), [pairs list](http://mcs2018-competition.visionlabs.ru/pairs_list.csv) and move to data
 ```
 python downloader.py --root ./data --main_imgs --student_model_imgs --submit_list --pairs_list
 ```
-3. prepare data for student model
+4. prepare data for student model
 ```
 python prepare_data.py --root data/student_model_imgs/ --datalist_path data/datalist/ --datalist_type train --gpu_id 1;
 python prepare_data.py --root data/imgs/ --datalist_path data/datalist/ --datalist_type val --gpu_id 1
@@ -41,7 +52,7 @@ cd ..;
 CUDA_VISIBLE_DEVICES=0 python attacker.py --root ./data/imgs/ --save_root ./baseline1/ --datalist ./data/pairs_list.csv --model_name ResNet18 --checkpoint_path student_net_learning/checkpoint/Baseline1/best_model_ckpt.t7 --cuda
 ```
 
-8. check ssim for submission, archive all files and make submission
+7. check ssim for submission, archive all files and make submission
 ```
 python evaluate.py --attack_root ./baseline1/ --target_dscr ./data/val_descriptors.npy --submit_name Baseline1 --gpu_id 1
 ```

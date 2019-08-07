@@ -7,15 +7,17 @@ import sys
 import time
 import math
 
+import torch
 import torch.nn as nn
 import torch.nn.init as init
+import torchvision.models as models
 
-_, term_width = os.popen('stty size', 'r').read().split()
-term_width = int(term_width)
+# _, term_width = os.popen('stty size', 'r').read().split()
+# term_width = int(term_width)
 
-TOTAL_BAR_LENGTH = 65.
-last_time = time.time()
-begin_time = last_time
+# TOTAL_BAR_LENGTH = 65.
+# last_time = time.time()
+# begin_time = last_time
 
 def progress_bar(current, total, msg=None):
     global last_time, begin_time
@@ -91,3 +93,83 @@ def format_time(seconds):
     if f == '':
         f = '0ms'
     return f
+
+def get_model(model_name, checkpoint_path):
+    '''
+    Model architecture choosing
+    '''
+    # do transfer learning
+    model = load_model(model_name, pretrained=True)
+    model = FineTuneModel(model,model_name,512)
+
+    model = torch.nn.DataParallel(model)
+    checkpoint = torch.load(checkpoint_path, map_location=lambda storage, loc: storage)
+    model.load_state_dict(checkpoint['state_dict'])
+    print("=> loaded checkpoint (epoch {})".format(checkpoint['epoch']))
+    model=model.module
+    
+    return model
+
+def load_model(arch='resnet18', pretrained=True):
+    if arch.startswith('resnet') :
+        model = models.__dict__[arch](pretrained=pretrained)
+    elif arch.startswith('densenet'):
+        model = models.__dict__[arch](pretrained=True)
+    else :
+        raise("Finetuning not supported on this architecture yet") 
+    return model
+
+class FineTuneModel(nn.Module):
+    def __init__(self, original_model, arch, num_classes):
+        super(FineTuneModel, self).__init__()
+
+        self.num_classes = num_classes
+        
+        if arch.startswith('resnet') :
+            # Everything except the last linear layer
+            self.features = nn.Sequential(
+                *list(original_model.children())[:-3],
+                nn.AvgPool2d(7, stride=1),
+            )
+            self.classifier = nn.Sequential(
+                nn.Linear(256, num_classes)
+            )
+            self.modelName = 'resnet'
+            self.mean = (0.485, 0.456, 0.406)
+            self.std = (0.229, 0.224, 0.225)            
+        elif arch.startswith('densenet161'):
+            self.features = nn.Sequential(
+                *list(original_model.features.children())[:-3],
+                nn.ReLU(inplace=True),
+                nn.AvgPool2d(kernel_size=7, stride=1)        
+             )
+            self.classifier = nn.Sequential(
+                nn.Linear(2112, num_classes)                   
+            )
+            self.modelName = 'densenet'
+            self.mean = (0.485, 0.456, 0.406)
+            self.std = (0.229, 0.224, 0.225)   
+        else :
+            raise("Finetuning not supported on this architecture yet")
+    
+    def freeze(self):
+        print('Features frozen')
+        # Freeze those weights
+        for p in self.features.parameters():
+            p.requires_grad = False
+
+    def unfreeze(self):
+        print('Features unfrozen')
+        # Freeze those weights
+        for p in self.features.parameters():
+            p.requires_grad = True            
+            
+    def forward(self, x):
+        f = self.features(x)
+        if self.modelName == 'resnet' :
+            f = f.view(f.size(0), -1)
+        elif self.modelName == 'densenet' :   
+            f = f.view(f.size(0), -1)
+
+        y = self.classifier(f) 
+        return y

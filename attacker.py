@@ -19,43 +19,6 @@ from skimage.measure import compare_ssim
 
 from student_net_learning.models import *
 
-SSIM_THR = 0.95
-
-MEAN = [0.485, 0.456, 0.406]
-STD = [0.229, 0.224, 0.225] 
-
-REVERSE_MEAN = [-0.485, -0.456, -0.406]
-REVERSE_STD = [1/0.229, 1/0.224, 1/0.225]
-
-parser = argparse.ArgumentParser(description='PyTorch student network training')
-
-parser.add_argument('--root', 
-                    required=True,
-                    type=str, 
-                    help='data root path')
-parser.add_argument('--save_root',
-                    required=True,
-                    type=str,
-                    help='path to store results',
-                    default='./changed_imgs')
-parser.add_argument('--datalist', 
-                    required=True,
-                    type=str, 
-                    help='datalist path')
-parser.add_argument('--model_name',
-                    type=str, 
-                    help='model name', 
-                    default='ResNet18')
-parser.add_argument('--checkpoint_path',
-                    required=True,
-                    type=str,
-                    help='path to learned student model checkpoints')
-parser.add_argument('--cuda',
-                    action='store_true', 
-                    help='use CUDA')
-
-args = parser.parse_args()
-
 def reverse_normalize(tensor, mean, std):
     '''reverese normalize to convert tensor -> PIL Image'''
     tensor_copy = tensor.clone()
@@ -226,4 +189,41 @@ def main():
         attacker.attack(pair_dict)
 
 if __name__ == '__main__':
+    SSIM_THR = 0.95
+
+    MEAN = [0.485, 0.456, 0.406]
+    STD = [0.229, 0.224, 0.225] 
+
+    REVERSE_MEAN = [-0.485, -0.456, -0.406]
+    REVERSE_STD = [1/0.229, 1/0.224, 1/0.225]
+
+    parser = argparse.ArgumentParser(description='PyTorch student network training')
+
+    parser.add_argument('--root', 
+                        required=True,
+                        type=str, 
+                        help='data root path')
+    parser.add_argument('--save_root',
+                        required=True,
+                        type=str,
+                        help='path to store results',
+                        default='./changed_imgs')
+    parser.add_argument('--datalist', 
+                        required=True,
+                        type=str, 
+                        help='datalist path')
+    parser.add_argument('--model_name',
+                        type=str, 
+                        help='model name', 
+                        default='ResNet18')
+    parser.add_argument('--checkpoint_path',
+                        required=True,
+                        type=str,
+                        help='path to learned student model checkpoints')
+    parser.add_argument('--cuda',
+                        action='store_true', 
+                        help='use CUDA')
+
+    args = parser.parse_args()
+    
     main()

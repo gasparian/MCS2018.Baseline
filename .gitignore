@@ -1,2 +1,8 @@
 venv/
 .*
+data/
+.ipynb_checkpoints
+*.jpg
+*.png
+baseline/
+__pycache__
