@@ -17,6 +17,7 @@ from tqdm import tqdm
 from PIL import Image
 from skimage.measure import compare_ssim
 
+import matplotlib.pyplot as plt
 from student_net_learning.models import *
 
 def reverse_normalize(tensor, mean, std):
@@ -53,12 +54,14 @@ class FGSM_Attacker():
     transform -- img to tensor transform without CenterCrop and Scale
     '''
     def __init__(self, model, eps, ssim_thr, transform, img2tensor, 
-                 args, max_iter=50):
+                 reverse_std, reverse_mean, args, max_iter=50):
         self.model = model
         self.model.eval()
         self.eps = eps
         self.ssim_thr = ssim_thr
         self.max_iter = max_iter
+        self.reverse_std = reverse_std
+        self.reverse_mean = reverse_mean
         self.transform = transform
         self.cropping = transforms.Compose([
                                       transforms.CenterCrop(224),
@@ -68,8 +71,8 @@ class FGSM_Attacker():
         self.args = args
         self.loss = nn.MSELoss()
 
-    def tensor2img(self, tensor, on_cuda=True):
-        tensor = reverse_normalize(tensor, REVERSE_MEAN, REVERSE_STD)
+    def tensor2img(self, tensor, on_cuda=False):
+        tensor = reverse_normalize(tensor, self.reverse_mean, self.reverse_std)
         # clipping
         tensor[tensor > 1] = 1
         tensor[tensor < 0] = 0
@@ -89,49 +92,48 @@ class FGSM_Attacker():
                                      dtype=np.float32)
 
         for idx, img_name in enumerate(target_img_names):
-            img_name = os.path.join(self.args.root, img_name)
+            img_name = os.path.join(self.args["root"], img_name)
             img = Image.open(img_name)
             tensor = self.transform(img).unsqueeze(0)
-            if self.args.cuda:
+            if self.args["cuda"]:
                 tensor = tensor.cuda(async=True)
 
             res = self.model(Variable(tensor, requires_grad=False))\
                       .data.cpu().numpy().squeeze()
             target_descriptors[idx] = res
+        target_img = img
 
-        #print ('TEST: target imgs are readed')
         for img_name in attack_pairs['source']:
-            #print ('TEST: attack on image {0}'.format(img_name))
+            print ('TEST: attack on image {0}'.format(img_name))
 
             #img is attacked
-            if os.path.isfile(os.path.join(self.args.save_root, img_name)):
+            if os.path.isfile(os.path.join(self.args["save_root"], img_name)):
                 continue
 
-            img = Image.open(os.path.join(self.args.root, img_name))
+            img = Image.open(os.path.join(self.args["root"], img_name))
             original_img = self.cropping(img)
             attacked_img = original_img
             tensor = self.transform(img)
-            input_var = Variable(tensor.unsqueeze(0).cuda(async=True),
-                                 requires_grad=True)
-            #print ('TEST: start iterations')
-            #tick = time.time()
+            input_var = Variable(tensor.unsqueeze(0), requires_grad=True)
+    
+            print ('TEST: start iterations')
+            tick = time.time()
+            
             for iter_number in tqdm(range(self.max_iter)):
                 adv_noise = torch.zeros((3,112,112))
                 
-                if self.args.cuda:
+                if self.args["cuda"]:
                     adv_noise = adv_noise.cuda(async=True)
 
                 for target_descriptor in target_descriptors:
                     target_out = Variable(torch.from_numpy(target_descriptor)\
-                                          .unsqueeze(0).cuda(async=True),
-                                 requires_grad=False)
+                                          .unsqueeze(0), requires_grad=False)
 
                     input_var.grad = None
                     out = self.model(input_var)
                     calc_loss = self.loss(out, target_out)
                     calc_loss.backward()
-                    noise = self.eps * torch.sign(input_var.grad.data)\
-                                       .squeeze()
+                    noise = self.eps * torch.sign(input_var.grad.data).squeeze()
                     adv_noise = adv_noise + noise
 
                 input_var.data = input_var.data - adv_noise
@@ -145,48 +147,34 @@ class FGSM_Attacker():
                     break
                 else:
                     attacked_img = changed_img
-            #tock = time.time()
-            #print ('TEST: end iterations. Time: {0:.2f}sec'.format(tock - tick))
+            tock = time.time()
+            print ('TEST: end iterations. SSIM: {0}; Time: {1:.2f}sec\n'.format(ssim, tock - tick))
 
-            if not os.path.isdir(self.args.save_root):
-                os.makedirs(self.args.save_root)
-            attacked_img.save(os.path.join(self.args.save_root, img_name.replace('.jpg', '.png')))
-
-def main():
-    #print ('TEST: start')
-    model = get_model(args.model_name, args.checkpoint_path)
-    #print ('TEST: model on cpu')
-    if args.cuda:
-        model = model.cuda()
-    #print ('TEST: model loaded')  
-
-    transform = transforms.Compose([
-                transforms.CenterCrop(224),
-                transforms.Scale(112),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=MEAN, std=STD),
-                ])
-    img2tensor = transforms.Compose([
-                 transforms.ToTensor(),
-                 transforms.Normalize(mean=MEAN, std=STD)
-                 ])
-
-
-    attacker = FGSM_Attacker(model,
-                        eps=1e-2,
-                        ssim_thr=SSIM_THR,
-                        transform=transform,
-                        img2tensor=img2tensor,
-                        args=args,
-                        max_iter=10000)
-    #print ('TEST: attacker is created')
-    img_pairs = pd.read_csv(args.datalist)
-    #print ('TEST: pairs are readed')
-    for idx in tqdm(img_pairs.index.values):
-        pair_dict = {'source': img_pairs.loc[idx].source_imgs.split('|'),
-                     'target': img_pairs.loc[idx].target_imgs.split('|')}
-        
-        attacker.attack(pair_dict)
+            if not os.path.isdir(self.args["save_root"]):
+                os.makedirs(self.args["save_root"])
+            attacked_img.save(os.path.join(self.args["save_root"], img_name.replace('.jpg', '.png')))
+            
+            if self.args["imshow"]:
+                # display images difference
+                plt.figure(figsize=(20, 5))
+                
+                plt.subplot(1, 4, 1)
+                plt.axis('off')
+                plt.imshow(original_img)
+                
+                plt.subplot(1, 4, 2)
+                plt.axis('off')
+                plt.imshow(np.abs(np.array(original_img) - np.array(attacked_img)))
+            
+                plt.subplot(1, 4, 3)
+                plt.axis('off')
+                plt.imshow(attacked_img)
+                
+                plt.subplot(1, 4, 4)
+                plt.axis('off')
+                plt.imshow(np.array(target_img))
+                
+                plt.show()
 
 if __name__ == '__main__':
     SSIM_THR = 0.95
@@ -225,5 +213,5 @@ if __name__ == '__main__':
                         help='use CUDA')
 
     args = parser.parse_args()
-    
+
     main()
