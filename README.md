@@ -1,5 +1,8 @@
 
-# [MCS2018: Adversarial Attacks on Black-box Face Recognition](https://github.com/AlexanderParkin/MCS2018.Baseline) X Workshop
+# [MCS2018: Adversarial Attacks on Black-box Face Recognition](https://github.com/AlexanderParkin/MCS2018.Baseline) X Workshop  
+
+*Trained Resnet18 student model included for experiments with white-box attacks*  
+*See the main refrence for more info*  
 
 ## How to reproduce  
 
