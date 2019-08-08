@@ -10,8 +10,10 @@ Get and run prepared docker image:
 ```
 docker pull gasparjan/mcs2018:latest
 ```  
+
+Clone this repo and insert folder adress to the volume:  
 ```
-docker run -it -p 8888:8888 -v /home/gas/Documents/MCS2018.Baseline:/home/MCS2018.Baseline --ipc=host gasparjan/mcs2018:latest jupyter notebook --no-browser --ip=0.0.0.0 --allow-root --NotebookApp.token= --notebook-dir='/home/MCS2018.Baseline'  
+docker run -it -p 8888:8888 -v {your_path}/MCS2018.Baseline:/home/MCS2018.Baseline --ipc=host gasparjan/mcs2018:latest jupyter notebook --no-browser --ip=0.0.0.0 --allow-root --NotebookApp.token= --notebook-dir='/home/MCS2018.Baseline'  
 ```  
 
 Run `explore.ipynb`.  
